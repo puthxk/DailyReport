@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daybook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FAF8F3;
+    --paper-alt:#F3EFE4;
+    --card:#FFFFFF;
+    --rule:#E1DACB;
+    --rule-strong:#CBC0A6;
+    --ink:#242320;
+    --ink-soft:#77705F;
+    --brass:#A8763E;
+    --brass-bg:#F3E7D6;
+    --sage:#4B6B54;
+    --sage-bg:#E7EDE5;
+    --rust:#AE4A3A;
+    --rust-bg:#F5E3DF;
+    --slate:#6E7686;
+    --slate-bg:#E9ECEF;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);height:100%;}
+  body{font-family:'IBM Plex Sans', sans-serif;}
+
+  .app{
+    display:grid;
+    grid-template-columns:176px minmax(300px, 420px) 1fr;
+    height:100vh;
+  }
+
+  /* ---------- Sidebar: months ---------- */
+  .sidebar{
+    background:var(--paper-alt);
+    border-right:1px solid var(--rule);
+    display:flex;flex-direction:column;
+    overflow:hidden;
+  }
+  .brand{
+    padding:20px 18px 14px;
+    border-bottom:1px solid var(--rule);
+  }
+  .brand h1{
+    font-family:'Fraunces', serif;font-weight:600;
+    font-size:23px;margin:0 0 12px;letter-spacing:-0.01em;
+  }
+  .year-nav{
+    display:flex;align-items:center;gap:10px;
+    font-family:'IBM Plex Mono', monospace;font-size:13px;color:var(--ink-soft);
+  }
+  .year-nav button{
+    background:none;border:1px solid var(--rule-strong);color:var(--ink);
+    width:24px;height:24px;border-radius:3px;cursor:pointer;font-size:12px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .year-nav button:hover{background:var(--paper);}
+  .year-num{font-size:14px;min-width:38px;text-align:center;}
+
+  .month-tabs{flex:1;overflow-y:auto;padding:6px 0;}
+  .month-tab{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:9px 18px;cursor:pointer;
+    border-left:3px solid transparent;
+    font-size:14.5px;color:var(--ink-soft);
+  }
+  .month-tab:hover{background:var(--paper);color:var(--ink);}
+  .month-tab.active{
+    border-left-color:var(--brass);background:var(--paper);
+    color:var(--ink);font-weight:600;
+  }
+  .month-tab .m-name{font-family:'Fraunces', serif;font-size:16px;}
+  .month-tab .m-count{
+    font-family:'IBM Plex Mono', monospace;font-size:10px;color:var(--ink-soft);
+  }
+  .month-tab.active .m-count{color:var(--brass);}
+  .month-tab.current .m-name{position:relative;}
+  .month-tab.current .m-name::after{
+    content:'';display:inline-block;width:5px;height:5px;border-radius:50%;
+    background:var(--brass);margin-left:6px;vertical-align:middle;
+  }
+
+  /* ---------- Center: calendar grid ---------- */
+  .day-col{
+    border-right:1px solid var(--rule);
+    display:flex;flex-direction:column;
+    overflow:hidden;
+  }
+  .month-heading{
+    font-family:'Fraunces', serif;font-weight:600;font-size:19px;
+    padding:20px 18px 12px;margin:0;
+  }
+  .weekday-row{
+    display:grid;grid-template-columns:repeat(7,1fr);
+    border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);
+  }
+  .weekday-cell{
+    font-family:'IBM Plex Mono', monospace;font-size:9.5px;color:var(--ink-soft);
+    text-transform:uppercase;letter-spacing:.04em;
+    text-align:center;padding:7px 0;
+  }
+  .calendar-grid{
+    flex:1;
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    grid-template-rows:repeat(6,1fr);
+  }
+  .day-cell{
+    border-right:1px solid var(--rule);
+    border-bottom:1px solid var(--rule);
+    padding:7px 8px;
+    cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:5px;
+  }
+  .day-cell:nth-child(7n){border-right:none;}
+  .day-cell:hover{background:var(--paper-alt);}
+  .day-cell.active{background:var(--paper-alt);box-shadow:inset 0 0 0 2px var(--brass);}
+  .day-cell.empty{cursor:default;background:var(--paper);}
+  .day-cell.empty:hover{background:var(--paper);}
+  .day-cell .d-num{
+    font-family:'Fraunces', serif;font-weight:600;font-size:15px;line-height:1;
+  }
+  .day-cell.today .d-num{color:var(--brass);}
+  .day-cell .d-dot{
+    width:5px;height:5px;border-radius:50%;background:var(--brass);
+    visibility:hidden;
+  }
+  .day-cell.has-tasks .d-dot{visibility:visible;}
+
+  /* ---------- Right: tasks ---------- */
+  .task-col{padding:24px 32px 40px;overflow-y:auto;}
+  .day-heading{
+    font-family:'Fraunces', serif;font-weight:600;font-size:28px;margin:0 0 20px;
+  }
+  .tasks{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+
+  .task-card{
+    background:var(--card);
+    border:1px solid var(--rule);
+    border-left:3px solid var(--slate);
+    border-radius:2px;
+    padding:11px 13px;
+    max-width:520px;
+  }
+  .task-card.status-todo{border-left-color:var(--slate);}
+  .task-card.status-inprogress{border-left-color:var(--brass);}
+  .task-card.status-done{border-left-color:var(--sage);}
+  .task-card.status-blocked{border-left-color:var(--rust);}
+  .task-card.status-done .project{color:var(--ink-soft);text-decoration:line-through;text-decoration-color:var(--rule-strong);}
+
+  .task-top{display:flex;align-items:center;gap:8px;}
+  .project{font-weight:600;font-size:15px;flex:1;word-break:break-word;}
+  .del{
+    background:none;border:none;color:var(--rule-strong);
+    cursor:pointer;font-size:16px;padding:0 2px;line-height:1;
+    visibility:hidden;
+  }
+  .task-card:hover .del{visibility:visible;}
+  .del:hover{color:var(--rust);}
+
+  .tag{
+    font-family:'IBM Plex Mono', monospace;font-size:10px;letter-spacing:.02em;
+    padding:2px 6px;border-radius:3px;white-space:nowrap;
+  }
+  .tag.status-todo{background:var(--slate-bg);color:var(--slate);}
+  .tag.status-inprogress{background:var(--brass-bg);color:var(--brass);}
+  .tag.status-done{background:var(--sage-bg);color:var(--sage);}
+  .tag.status-blocked{background:var(--rust-bg);color:var(--rust);}
+  .tag.prio-low{background:var(--sage-bg);color:var(--sage);}
+  .tag.prio-medium{background:var(--brass-bg);color:var(--brass);}
+  .tag.prio-high{background:var(--rust-bg);color:var(--rust);}
+
+  .task-meta{
+    margin-top:6px;font-size:12.5px;color:var(--ink-soft);
+    display:flex;flex-wrap:wrap;gap:4px 12px;
+  }
+  .task-meta span b{color:var(--ink);font-weight:500;}
+  .task-notes{margin-top:5px;font-size:12.5px;color:var(--ink-soft);font-style:italic;}
+
+  .empty-note{
+    font-family:'IBM Plex Mono', monospace;font-size:13px;color:var(--ink-soft);
+    padding:4px 0 18px;
+  }
+
+  .add-toggle{
+    font-family:'IBM Plex Mono', monospace;font-size:12.5px;color:var(--brass);
+    background:none;border:none;cursor:pointer;padding:2px 0;
+    display:flex;align-items:center;gap:5px;
+  }
+  .add-toggle:hover{color:var(--ink);}
+  .add-form{
+    display:none;margin-top:12px;max-width:520px;
+    background:var(--paper-alt);border:1px solid var(--rule);border-radius:3px;padding:14px;
+  }
+  .add-form.open{display:block;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;}
+  .form-grid .full{grid-column:1 / -1;}
+  .field label{
+    display:block;font-family:'IBM Plex Mono', monospace;font-size:10px;
+    color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px;
+  }
+  .field input[type=text], .field input[type=date], .field select{
+    width:100%;border:1px solid var(--rule-strong);border-radius:3px;background:var(--card);
+    font-family:'IBM Plex Sans', sans-serif;font-size:13.5px;padding:6px 7px;color:var(--ink);outline:none;
+  }
+  .field input:focus, .field select:focus{border-color:var(--brass);}
+  .form-actions{margin-top:10px;display:flex;gap:8px;justify-content:flex-end;}
+  .btn{
+    font-family:'IBM Plex Mono', monospace;font-size:12px;border-radius:3px;
+    padding:6px 12px;cursor:pointer;border:1px solid transparent;
+  }
+  .btn-save{background:var(--ink);color:var(--paper);}
+  .btn-save:hover{background:#000;}
+  .btn-cancel{background:none;border-color:var(--rule-strong);color:var(--ink-soft);}
+  .btn-cancel:hover{color:var(--ink);}
+
+  /* ---------- Responsive: below this width, drop the fixed full-screen grid ---------- */
+  @media (max-width:860px){
+    html,body{height:auto;}
+    .app{display:block;height:auto;}
+    .sidebar{border-right:none;border-bottom:1px solid var(--rule);flex-direction:row;flex-wrap:wrap;}
+    .brand{border-bottom:none;padding:14px 16px;width:100%;display:flex;align-items:center;justify-content:space-between;}
+    .brand h1{margin:0;font-size:20px;}
+    .month-tabs{display:flex;overflow-x:auto;padding:0 10px 12px;width:100%;}
+    .month-tab{flex:0 0 auto;border-left:none;border-bottom:3px solid transparent;padding:6px 12px;}
+    .month-tab.active{border-left:none;border-bottom-color:var(--brass);}
+    .day-col{border-right:none;border-bottom:1px solid var(--rule);}
+    .month-heading{padding:14px 16px 8px;}
+    .calendar-grid{grid-template-rows:repeat(6, 56px);}
+    .day-cell .d-num{font-size:13.5px;}
+    .task-col{padding:20px 18px 60px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <h1>Daybook</h1>
+      <div class="year-nav">
+        <button id="yearPrev" aria-label="Previous year">&#8592;</button>
+        <span class="year-num" id="yearNum"></span>
+        <button id="yearNext" aria-label="Next year">&#8594;</button>
+      </div>
+    </div>
+    <nav class="month-tabs" id="monthTabs"></nav>
+  </aside>
+
+  <section class="day-col">
+    <h2 class="month-heading" id="monthHeading"></h2>
+    <div class="weekday-row" id="weekdayRow"></div>
+    <div class="calendar-grid" id="calendarGrid"></div>
+  </section>
+
+  <section class="task-col">
+    <h2 class="day-heading" id="dayHeading"></h2>
+    <div class="tasks" id="tasksArea"></div>
+    <div class="empty-note" id="emptyNote" style="display:none;">no tasks for this day yet</div>
+    <button class="add-toggle" id="addToggle">+ add task</button>
+    <div class="add-form" id="addForm"></div>
+  </section>
+
+</div>
+
+<script>
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const WK_NAMES = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+const WK_LETTERS = ["S","M","T","W","T","F","S"];
+const STATUS_OPTS = [
+  {v:'todo', l:'To Do'},
+  {v:'inprogress', l:'In Progress'},
+  {v:'done', l:'Done'},
+  {v:'blocked', l:'Blocked'}
+];
+const STATUS_LABEL = Object.fromEntries(STATUS_OPTS.map(s=>[s.v,s.l]));
+const PRIO_OPTS = [
+  {v:'low', l:'Low'},
+  {v:'medium', l:'Medium'},
+  {v:'high', l:'High'}
+];
+const PRIO_LABEL = Object.fromEntries(PRIO_OPTS.map(p=>[p.v,p.l]));
+
+const today = new Date();
+let viewYear = today.getFullYear();
+let selectedMonth = today.getMonth();
+let selectedDay = today.getDate();
+const monthCache = {};
+
+function pad2(n){ return String(n).padStart(2,'0'); }
+function monthKey(year, monthIdx){ return `tasks:${year}-${pad2(monthIdx+1)}`; }
+function daysInMonth(year, monthIdx){ return new Date(year, monthIdx+1, 0).getDate(); }
+function esc(s){
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : s;
+  return d.innerHTML;
+}
+
+async function loadMonth(year, monthIdx){
+  const key = monthKey(year, monthIdx);
+  if(monthCache[key]) return monthCache[key];
+  let data = {};
+  try{
+    const res = await window.storage.get(key, false);
+    if(res && res.value) data = JSON.parse(res.value);
+  }catch(e){ /* no data yet */ }
+  monthCache[key] = data;
+  return data;
+}
+
+async function saveMonth(year, monthIdx){
+  const key = monthKey(year, monthIdx);
+  const data = monthCache[key] || {};
+  try{
+    await window.storage.set(key, JSON.stringify(data), false);
+  }catch(e){
+    console.error('storage save failed', e);
+  }
+}
+
+function countTasks(data){
+  let total = 0, done = 0;
+  Object.values(data).forEach(list=>{
+    list.forEach(t=>{ total++; if(t.status === 'done') done++; });
+  });
+  return {total, done};
+}
+
+async function init(){
+  document.getElementById('yearNum').textContent = viewYear;
+  const wkRow = document.getElementById('weekdayRow');
+  wkRow.innerHTML = WK_LETTERS.map(l=>`<div class="weekday-cell">${l}</div>`).join('');
+  await renderSidebar();
+  await renderCalendar();
+  await renderTaskPanel();
+}
+
+async function renderSidebar(){
+  document.getElementById('yearNum').textContent = viewYear;
+  const tabs = document.getElementById('monthTabs');
+  tabs.innerHTML = '';
+  for(let m=0;m<12;m++){
+    const data = await loadMonth(viewYear, m);
+    const {total, done} = countTasks(data);
+    const tab = document.createElement('div');
+    tab.className = 'month-tab' + (m===selectedMonth ? ' active' : '') +
+      (viewYear===today.getFullYear() && m===today.getMonth() ? ' current' : '');
+    const countText = total === 0 ? '' : `${done}/${total}`;
+    tab.innerHTML = `<span class="m-name">${MONTH_NAMES[m]}</span><span class="m-count">${countText}</span>`;
+    tab.addEventListener('click', async ()=>{
+      selectedMonth = m;
+      selectedDay = (viewYear===today.getFullYear() && m===today.getMonth()) ? today.getDate() : 1;
+      await renderSidebar();
+      await renderCalendar();
+      await renderTaskPanel();
+    });
+    tabs.appendChild(tab);
+  }
+}
+
+async function renderCalendar(){
+  document.getElementById('monthHeading').textContent = `${MONTH_NAMES[selectedMonth]} ${viewYear}`;
+  const grid = document.getElementById('calendarGrid');
+  grid.innerHTML = '';
+
+  const data = await loadMonth(viewYear, selectedMonth);
+  const nDays = daysInMonth(viewYear, selectedMonth);
+  if(selectedDay > nDays) selectedDay = nDays;
+
+  const firstWeekday = new Date(viewYear, selectedMonth, 1).getDay();
+  const totalCells = 42; // 6 rows x 7 cols, fixed so the grid always fills the pane
+
+  for(let i=0;i<totalCells;i++){
+    const d = i - firstWeekday + 1;
+    const cell = document.createElement('div');
+
+    if(d < 1 || d > nDays){
+      cell.className = 'day-cell empty';
+      grid.appendChild(cell);
+      continue;
+    }
+
+    const isToday = viewYear===today.getFullYear() && selectedMonth===today.getMonth() && d===today.getDate();
+    const hasTasks = !!(data[d] && data[d].length);
+
+    cell.className = 'day-cell' +
+      (d===selectedDay ? ' active' : '') +
+      (isToday ? ' today' : '') +
+      (hasTasks ? ' has-tasks' : '');
+    cell.innerHTML = `<span class="d-num">${d}</span><span class="d-dot"></span>`;
+    cell.addEventListener('click', async ()=>{
+      selectedDay = d;
+      await renderCalendar();
+      await renderTaskPanel();
+    });
+    grid.appendChild(cell);
+  }
+}
+
+async function renderTaskPanel(){
+  const dateObj = new Date(viewYear, selectedMonth, selectedDay);
+  const wk = WK_NAMES[dateObj.getDay()];
+  document.getElementById('dayHeading').textContent =
+    `${MONTH_NAMES[selectedMonth]} ${selectedDay}, ${viewYear} \u2014 ${wk}`;
+
+  const data = await loadMonth(viewYear, selectedMonth);
+  const tasks = data[selectedDay] || [];
+  const tasksArea = document.getElementById('tasksArea');
+  tasksArea.innerHTML = '';
+  tasks.forEach((t, idx)=>{
+    tasksArea.appendChild(buildTaskCard(viewYear, selectedMonth, selectedDay, idx, t));
+  });
+  document.getElementById('emptyNote').style.display = tasks.length ? 'none' : 'block';
+
+  const addForm = buildAddForm(viewYear, selectedMonth, selectedDay);
+  const formHolder = document.getElementById('addForm');
+  formHolder.replaceWith(addForm);
+  addForm.id = 'addForm';
+
+  const toggleBtn = document.getElementById('addToggle');
+  const newToggle = toggleBtn.cloneNode(true);
+  toggleBtn.replaceWith(newToggle);
+  newToggle.addEventListener('click', ()=>{
+    addForm.classList.toggle('open');
+  });
+}
+
+function buildTaskCard(year, monthIdx, day, idx, task){
+  const div = document.createElement('div');
+  div.className = `task-card status-${task.status || 'todo'}`;
+
+  const top = document.createElement('div');
+  top.className = 'task-top';
+
+  const project = document.createElement('div');
+  project.className = 'project';
+  project.textContent = task.project || '(untitled)';
+
+  const statusTag = document.createElement('span');
+  statusTag.className = `tag status-${task.status || 'todo'}`;
+  statusTag.textContent = STATUS_LABEL[task.status] || 'To Do';
+
+  const prioTag = document.createElement('span');
+  prioTag.className = `tag prio-${task.priority || 'medium'}`;
+  prioTag.textContent = PRIO_LABEL[task.priority] || 'Medium';
+
+  const del = document.createElement('button');
+  del.className = 'del';
+  del.textContent = '\u00d7';
+  del.title = 'remove';
+  del.addEventListener('click', async ()=>{
+    const key = monthKey(year, monthIdx);
+    monthCache[key][day].splice(idx,1);
+    await saveMonth(year, monthIdx);
+    await renderSidebar();
+    await renderCalendar();
+    await renderTaskPanel();
+  });
+
+  top.appendChild(project);
+  top.appendChild(statusTag);
+  top.appendChild(prioTag);
+  top.appendChild(del);
+
+  const meta = document.createElement('div');
+  meta.className = 'task-meta';
+  const metaBits = [];
+  if(task.pic) metaBits.push(`<span>PIC: <b>${esc(task.pic)}</b></span>`);
+  if(task.branch) metaBits.push(`<span>Branch: <b>${esc(task.branch)}</b></span>`);
+  if(task.due) metaBits.push(`<span>Due: <b>${esc(task.due)}</b></span>`);
+  meta.innerHTML = metaBits.join('');
+
+  div.appendChild(top);
+  if(metaBits.length) div.appendChild(meta);
+  if(task.notes){
+    const notes = document.createElement('div');
+    notes.className = 'task-notes';
+    notes.textContent = task.notes;
+    div.appendChild(notes);
+  }
+
+  return div;
+}
+
+function buildAddForm(year, monthIdx, day){
+  const form = document.createElement('div');
+  form.className = 'add-form';
+
+  const statusOptsHtml = STATUS_OPTS.map(s=>`<option value="${s.v}">${s.l}</option>`).join('');
+  const prioOptsHtml = PRIO_OPTS.map(p=>`<option value="${p.v}" ${p.v==='medium'?'selected':''}>${p.l}</option>`).join('');
+
+  form.innerHTML = `
+    <div class="form-grid">
+      <div class="field full">
+        <label>Project</label>
+        <input type="text" class="f-project" placeholder="Project name">
+      </div>
+      <div class="field">
+        <label>PIC</label>
+        <input type="text" class="f-pic" placeholder="Person in charge">
+      </div>
+      <div class="field">
+        <label>Branch</label>
+        <input type="text" class="f-branch" placeholder="e.g. feature/xyz">
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select class="f-status">${statusOptsHtml}</select>
+      </div>
+      <div class="field">
+        <label>Priority</label>
+        <select class="f-priority">${prioOptsHtml}</select>
+      </div>
+      <div class="field">
+        <label>Due date</label>
+        <input type="date" class="f-due">
+      </div>
+      <div class="field full">
+        <label>Notes</label>
+        <input type="text" class="f-notes" placeholder="Remarks">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-cancel">Cancel</button>
+      <button class="btn btn-save">Add task</button>
+    </div>
+  `;
+
+  const cancelBtn = form.querySelector('.btn-cancel');
+  const saveBtn = form.querySelector('.btn-save');
+
+  cancelBtn.addEventListener('click', ()=>{
+    form.classList.remove('open');
+    clearForm();
+  });
+
+  function clearForm(){
+    form.querySelector('.f-project').value = '';
+    form.querySelector('.f-pic').value = '';
+    form.querySelector('.f-branch').value = '';
+    form.querySelector('.f-status').value = 'todo';
+    form.querySelector('.f-priority').value = 'medium';
+    form.querySelector('.f-due').value = '';
+    form.querySelector('.f-notes').value = '';
+  }
+
+  saveBtn.addEventListener('click', async ()=>{
+    const project = form.querySelector('.f-project').value.trim();
+    if(!project){
+      form.querySelector('.f-project').focus();
+      return;
+    }
+    const task = {
+      project,
+      pic: form.querySelector('.f-pic').value.trim(),
+      branch: form.querySelector('.f-branch').value.trim(),
+      status: form.querySelector('.f-status').value,
+      priority: form.querySelector('.f-priority').value,
+      due: form.querySelector('.f-due').value,
+      notes: form.querySelector('.f-notes').value.trim()
+    };
+    await addTask(year, monthIdx, day, task);
+    await renderSidebar();
+    await renderCalendar();
+    await renderTaskPanel();
+  });
+
+  return form;
+}
+
+async function addTask(year, monthIdx, day, task){
+  const key = monthKey(year, monthIdx);
+  if(!monthCache[key]) monthCache[key] = {};
+  if(!monthCache[key][day]) monthCache[key][day] = [];
+  monthCache[key][day].push(task);
+  await saveMonth(year, monthIdx);
+}
+
+document.getElementById('yearPrev').addEventListener('click', async ()=>{
+  viewYear--;
+  selectedDay = 1;
+  await init();
+});
+document.getElementById('yearNext').addEventListener('click', async ()=>{
+  viewYear++;
+  selectedDay = 1;
+  await init();
+});
+
+init();
+</script>
+</body>
+</html>
