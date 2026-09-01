@@ -306,8 +306,8 @@ async function loadMonth(year, monthIdx){
   if(monthCache[key]) return monthCache[key];
   let data = {};
   try{
-    const res = await window.storage.get(key, false);
-    if(res && res.value) data = JSON.parse(res.value);
+    const raw = localStorage.getItem(key);
+    if(raw) data = JSON.parse(raw);
   }catch(e){ /* no data yet */ }
   monthCache[key] = data;
   return data;
@@ -317,7 +317,7 @@ async function saveMonth(year, monthIdx){
   const key = monthKey(year, monthIdx);
   const data = monthCache[key] || {};
   try{
-    await window.storage.set(key, JSON.stringify(data), false);
+    localStorage.setItem(key, JSON.stringify(data));
   }catch(e){
     console.error('storage save failed', e);
   }
