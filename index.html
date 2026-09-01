@@ -116,6 +116,7 @@
     cursor:pointer;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:5px;
+    transition:background .15s ease, box-shadow .15s ease;
   }
   .day-cell:nth-child(7n){border-right:none;}
   .day-cell:hover{background:var(--paper-alt);}
@@ -139,6 +140,15 @@
   }
   .tasks{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
 
+  @keyframes cardIn{
+    from{opacity:0;transform:translateY(6px);}
+    to{opacity:1;transform:translateY(0);}
+  }
+  @keyframes cardPulse{
+    0%{box-shadow:inset 0 0 0 2px var(--brass);}
+    100%{box-shadow:inset 0 0 0 2px var(--rule);}
+  }
+
   .task-card{
     background:var(--card);
     border:1px solid var(--rule);
@@ -146,21 +156,32 @@
     border-radius:2px;
     padding:11px 13px;
     max-width:520px;
+    animation:cardIn .28s ease-out;
+    transition:box-shadow .2s ease, border-left-color .2s ease, opacity .18s ease, transform .18s ease;
   }
   .task-card.status-todo{border-left-color:var(--slate);}
   .task-card.status-inprogress{border-left-color:var(--brass);}
   .task-card.status-done{border-left-color:var(--sage);}
   .task-card.status-blocked{border-left-color:var(--rust);}
   .task-card.status-done .project{color:var(--ink-soft);text-decoration:line-through;text-decoration-color:var(--rule-strong);}
+  .task-card.editing{box-shadow:inset 0 0 0 2px var(--brass);}
+  .task-card.removing{
+    opacity:0;
+    transform:translateX(10px) scale(.97);
+  }
 
   .task-top{display:flex;align-items:center;gap:8px;}
-  .project{font-weight:600;font-size:15px;flex:1;word-break:break-word;}
-  .del{
-    background:none;border:none;color:var(--rule-strong);
-    cursor:pointer;font-size:16px;padding:0 2px;line-height:1;
-    visibility:hidden;
+  .project{font-weight:600;font-size:15px;flex:1;word-break:break-word;transition:color .2s ease;}
+  .edit, .del{
+    background:none;border:none;
+    cursor:pointer;font-size:14px;padding:1px 3px;line-height:1;
+    opacity:0;pointer-events:none;
+    transition:opacity .15s ease, color .15s ease;
   }
-  .task-card:hover .del{visibility:visible;}
+  .edit{color:var(--ink-soft);font-size:13px;}
+  .del{color:var(--rule-strong);font-size:16px;}
+  .task-card:hover .edit, .task-card:hover .del{opacity:1;pointer-events:auto;}
+  .edit:hover{color:var(--brass);}
   .del:hover{color:var(--rust);}
 
   .tag{
@@ -194,10 +215,15 @@
   }
   .add-toggle:hover{color:var(--ink);}
   .add-form{
-    display:none;margin-top:12px;max-width:520px;
-    background:var(--paper-alt);border:1px solid var(--rule);border-radius:3px;padding:14px;
+    max-width:520px;
+    background:var(--paper-alt);border:1px solid transparent;border-radius:3px;
+    max-height:0;opacity:0;overflow:hidden;padding:0 14px;margin-top:0;
+    transition:max-height .28s ease, opacity .2s ease, margin-top .28s ease, padding .28s ease, border-color .2s ease;
   }
-  .add-form.open{display:block;}
+  .add-form.open{
+    max-height:640px;opacity:1;margin-top:12px;padding:14px;
+    border-color:var(--rule);
+  }
   .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;}
   .form-grid .full{grid-column:1 / -1;}
   .field label{
@@ -290,6 +316,7 @@ const today = new Date();
 let viewYear = today.getFullYear();
 let selectedMonth = today.getMonth();
 let selectedDay = today.getDate();
+let editingTaskIndex = null;
 const monthCache = {};
 
 function pad2(n){ return String(n).padStart(2,'0'); }
@@ -355,6 +382,7 @@ async function renderSidebar(){
     tab.addEventListener('click', async ()=>{
       selectedMonth = m;
       selectedDay = (viewYear===today.getFullYear() && m===today.getMonth()) ? today.getDate() : 1;
+      editingTaskIndex = null;
       await renderSidebar();
       await renderCalendar();
       await renderTaskPanel();
@@ -395,6 +423,7 @@ async function renderCalendar(){
     cell.innerHTML = `<span class="d-num">${d}</span><span class="d-dot"></span>`;
     cell.addEventListener('click', async ()=>{
       selectedDay = d;
+      editingTaskIndex = null;
       await renderCalendar();
       await renderTaskPanel();
     });
@@ -410,6 +439,8 @@ async function renderTaskPanel(){
 
   const data = await loadMonth(viewYear, selectedMonth);
   const tasks = data[selectedDay] || [];
+  if(editingTaskIndex !== null && !tasks[editingTaskIndex]) editingTaskIndex = null;
+
   const tasksArea = document.getElementById('tasksArea');
   tasksArea.innerHTML = '';
   tasks.forEach((t, idx)=>{
@@ -417,22 +448,32 @@ async function renderTaskPanel(){
   });
   document.getElementById('emptyNote').style.display = tasks.length ? 'none' : 'block';
 
-  const addForm = buildAddForm(viewYear, selectedMonth, selectedDay);
+  const editingTask = editingTaskIndex !== null ? tasks[editingTaskIndex] : null;
+  const addForm = buildAddForm(viewYear, selectedMonth, selectedDay, editingTaskIndex, editingTask);
   const formHolder = document.getElementById('addForm');
   formHolder.replaceWith(addForm);
   addForm.id = 'addForm';
+  if(editingTask){
+    requestAnimationFrame(()=> addForm.classList.add('open'));
+  }
 
   const toggleBtn = document.getElementById('addToggle');
   const newToggle = toggleBtn.cloneNode(true);
   toggleBtn.replaceWith(newToggle);
-  newToggle.addEventListener('click', ()=>{
+  newToggle.addEventListener('click', async ()=>{
+    if(editingTaskIndex !== null){
+      editingTaskIndex = null;
+      await renderTaskPanel();
+      return;
+    }
     addForm.classList.toggle('open');
   });
 }
 
 function buildTaskCard(year, monthIdx, day, idx, task){
   const div = document.createElement('div');
-  div.className = `task-card status-${task.status || 'todo'}`;
+  div.className = `task-card status-${task.status || 'todo'}` +
+    (idx === editingTaskIndex ? ' editing' : '');
 
   const top = document.createElement('div');
   top.className = 'task-top';
@@ -449,14 +490,29 @@ function buildTaskCard(year, monthIdx, day, idx, task){
   prioTag.className = `tag prio-${task.priority || 'medium'}`;
   prioTag.textContent = PRIO_LABEL[task.priority] || 'Medium';
 
+  const edit = document.createElement('button');
+  edit.className = 'edit';
+  edit.textContent = '\u270e';
+  edit.title = 'edit';
+  edit.addEventListener('click', async ()=>{
+    editingTaskIndex = (editingTaskIndex === idx) ? null : idx;
+    await renderTaskPanel();
+    if(editingTaskIndex === idx){
+      document.getElementById('addForm').scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+  });
+
   const del = document.createElement('button');
   del.className = 'del';
   del.textContent = '\u00d7';
   del.title = 'remove';
   del.addEventListener('click', async ()=>{
+    div.classList.add('removing');
+    await new Promise(r=>setTimeout(r, 180));
     const key = monthKey(year, monthIdx);
     monthCache[key][day].splice(idx,1);
     await saveMonth(year, monthIdx);
+    if(editingTaskIndex === idx) editingTaskIndex = null;
     await renderSidebar();
     await renderCalendar();
     await renderTaskPanel();
@@ -465,6 +521,7 @@ function buildTaskCard(year, monthIdx, day, idx, task){
   top.appendChild(project);
   top.appendChild(statusTag);
   top.appendChild(prioTag);
+  top.appendChild(edit);
   top.appendChild(del);
 
   const meta = document.createElement('div');
@@ -487,12 +544,13 @@ function buildTaskCard(year, monthIdx, day, idx, task){
   return div;
 }
 
-function buildAddForm(year, monthIdx, day){
+function buildAddForm(year, monthIdx, day, editingIndex, editingTask){
+  const isEditing = editingIndex !== null && editingIndex !== undefined && editingTask;
   const form = document.createElement('div');
   form.className = 'add-form';
 
   const statusOptsHtml = STATUS_OPTS.map(s=>`<option value="${s.v}">${s.l}</option>`).join('');
-  const prioOptsHtml = PRIO_OPTS.map(p=>`<option value="${p.v}" ${p.v==='medium'?'selected':''}>${p.l}</option>`).join('');
+  const prioOptsHtml = PRIO_OPTS.map(p=>`<option value="${p.v}">${p.l}</option>`).join('');
 
   form.innerHTML = `
     <div class="form-grid">
@@ -527,27 +585,38 @@ function buildAddForm(year, monthIdx, day){
     </div>
     <div class="form-actions">
       <button class="btn btn-cancel">Cancel</button>
-      <button class="btn btn-save">Add task</button>
+      <button class="btn btn-save">${isEditing ? 'Save changes' : 'Add task'}</button>
     </div>
   `;
 
   const cancelBtn = form.querySelector('.btn-cancel');
   const saveBtn = form.querySelector('.btn-save');
 
-  cancelBtn.addEventListener('click', ()=>{
-    form.classList.remove('open');
-    clearForm();
-  });
-
-  function clearForm(){
-    form.querySelector('.f-project').value = '';
-    form.querySelector('.f-pic').value = '';
-    form.querySelector('.f-branch').value = '';
-    form.querySelector('.f-status').value = 'todo';
-    form.querySelector('.f-priority').value = 'medium';
-    form.querySelector('.f-due').value = '';
-    form.querySelector('.f-notes').value = '';
+  function fillForm(t){
+    form.querySelector('.f-project').value = t.project || '';
+    form.querySelector('.f-pic').value = t.pic || '';
+    form.querySelector('.f-branch').value = t.branch || '';
+    form.querySelector('.f-status').value = t.status || 'todo';
+    form.querySelector('.f-priority').value = t.priority || 'medium';
+    form.querySelector('.f-due').value = t.due || '';
+    form.querySelector('.f-notes').value = t.notes || '';
   }
+
+  if(isEditing){
+    fillForm(editingTask);
+  }else{
+    fillForm({status:'todo', priority:'medium'});
+  }
+
+  cancelBtn.addEventListener('click', async ()=>{
+    if(isEditing){
+      editingTaskIndex = null;
+      await renderTaskPanel();
+      return;
+    }
+    form.classList.remove('open');
+    fillForm({status:'todo', priority:'medium'});
+  });
 
   saveBtn.addEventListener('click', async ()=>{
     const project = form.querySelector('.f-project').value.trim();
@@ -564,7 +633,12 @@ function buildAddForm(year, monthIdx, day){
       due: form.querySelector('.f-due').value,
       notes: form.querySelector('.f-notes').value.trim()
     };
-    await addTask(year, monthIdx, day, task);
+    if(isEditing){
+      await updateTask(year, monthIdx, day, editingIndex, task);
+      editingTaskIndex = null;
+    }else{
+      await addTask(year, monthIdx, day, task);
+    }
     await renderSidebar();
     await renderCalendar();
     await renderTaskPanel();
@@ -578,6 +652,13 @@ async function addTask(year, monthIdx, day, task){
   if(!monthCache[key]) monthCache[key] = {};
   if(!monthCache[key][day]) monthCache[key][day] = [];
   monthCache[key][day].push(task);
+  await saveMonth(year, monthIdx);
+}
+
+async function updateTask(year, monthIdx, day, idx, task){
+  const key = monthKey(year, monthIdx);
+  if(!monthCache[key] || !monthCache[key][day]) return;
+  monthCache[key][day][idx] = task;
   await saveMonth(year, monthIdx);
 }
 
